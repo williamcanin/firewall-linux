@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# Variables Global
+#
+SCRIPT_NAME="$(ls -1 src/)"
+SERVICE_NAME="${SCRIPT_NAME}.service"
+DIR_SCRIPTS="/usr/lib/systemd/scripts"
+DIR_SERVICE="/etc/systemd/system"
+
+# Is Root
+#
+if [[ "$(id -u )" != 0 ]]; then
+  printf "[Warning] Use Root !\n"
+  exit 1
+fi
+
+# Functions / Methods
+#
+function _prepare(){
+  # This option is for Fedora
+  systemctl stop firewalld
+  systemctl disable firewalld
+}
+
+function _create_install_service(){
+
+cat << EOF > "$DIR_SERVICE/$SERVICE_NAME"
+# Firewall Mode Script
+# OS: Linux
+# Author: William C. Canin
+
+[Unit]
+Description=Script Firewall
+After=bar.service
+After=network.target
+After=syslog.target
+
+[Service]
+Type=simple
+RemainAfterExit=yes
+ExecStart=$DIR_SCRIPTS/$SCRIPT_NAME start
+ExecStop=$DIR_SCRIPTS/$SCRIPT_NAME stop
+ExecReload=$DIR_SCRIPTS/$SCRIPT_NAME restart
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  chmod 644 $DIR_SERVICE/$SERVICE_NAME
+}
+
+function _install_script(){
+  if [[ ! -d "$DIR_SCRIPTS" ]]; then
+    mkdir $DIR_SCRIPTS
+  fi
+  cp -f src/$SCRIPT_NAME $DIR_SCRIPTS
+  chmod +x $DIR_SCRIPTS/$SCRIPT_NAME
+}
+
+function _realod_systemd(){
+  systemctl daemon-reload
+}
+
+function _status_start_firewall(){
+  systemctl start $SERVICE_NAME
+  systemctl status $SERVICE_NAME
+}
+
+function _uninstall(){
+  systemctl stop $SERVICE_NAME
+  systemctl disable $SERVICE_NAME
+  rm -f $DIR_SCRIPTS/$SCRIPT_NAME
+  rm -f $DIR_SERVICE/$SERVICE_NAME
+  _realod_systemd
+}
+
+# Main
+#
+case $1 in
+  install|-i )
+    _prepare
+    _install_script
+    _create_install_service
+    _realod_systemd
+    _status_start_firewall
+    printf "Done!\n"
+    ;;
+    uninstall|-u)
+      _uninstall
+      printf "Done!\n"
+    ;;
+    *)
+      printf "Usage: $0 [ install [-i] | uninstall [-u] ]\n"
+    ;;
+esac
+
+
+
+
+
+

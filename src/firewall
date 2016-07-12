@@ -1,0 +1,524 @@
+#!/bin/bash
+######################################################
+#   		   Firewall Iptables 		                     #
+# -------------------------------------------------- #
+# Type: Firewall for Server or Client with Squid --- #
+# Author: William da Costa Canin ------------------- #
+######################################################
+echo
+echo "======================="
+echo "   Firewall Iptables   "
+echo "======================="
+
+# Variáveis
+ok='\033[1;32m[ok]\033[0m'
+info='\033[1;34m[info]\033[0m'
+warning='\033[1;33m[aviso]\033[0m'
+
+# Interface da Internet / Rede Externa:
+iface_externa_yesno="yes" # Se sua maquina tem uma conexao com internet, deixe "yes".
+iface_externa="wlp7s0"  # Informe a interface da placa de rede, que é usada para conectar com a internet.
+ip_externo=192.168.0.100/24 # Informe o Ip externo, ou seja, o Ip da internet.
+
+# Interface da Rede Local / Rede Interna
+iface_interna_yesno="no" # Se sua maquina tem uma rede interna, deixe "yes".
+iface_interna="enp19s0" # Informe a interface da placa de rede, que eh usada para Rede Local.
+ip_interno=192.168.0.1/24 # Informe o IP da Rede Local, geralmente este eh o padrao.
+
+# Habilitando Seguranca (yes/no)
+security="yes"
+
+# Habilitar Servidores (yes/no)
+server_dhcp="no"
+server_apache_tomcat="no"
+server_bind9="no"
+server_proftpd="no"
+server_postfix="no"
+server_postgresql="no"
+server_samba="no"
+server_squid="no"
+
+# Habilitar Servicos (yes/no)
+service_dns="yes"
+service_ftp="yes"
+service_http="yes"
+service_https="yes"
+service_ping="yes"
+service_pop3="yes"
+service_pop3s="yes"
+service_pptp="yes"
+service_ssh="yes"
+service_smtp="yes"
+
+# Redirecionar acesso Web(http) para porta do Squid, Servidor e Client (yes/no)
+# Obs: Configure seu Squid. Se sua maquina for servidor, nao esqueca de informar no "squid.conf" a Rede Local.
+squid_redirect_server="no"
+squid_redirect_client="no"
+
+# Compartilhar Internet com a Rede Local - Ative essa opcao se tiver uma rede local (yes/no).
+network_share="no"
+
+# Liberando Internet (yes/no)
+internet_active="yes"
+
+
+parar(){
+echo -e $info "Limpando as Tabelas, Chains e voltando a Politicas Padrao do Iptables."
+iptables -F
+iptables -X
+iptables -Z
+iptables -t nat -F
+iptables -t nat -X
+iptables -t nat -Z
+iptables -t mangle -F
+iptables -t mangle -X
+iptables -t mangle -Z
+iptables -F INPUT
+iptables -F OUTPUT
+iptables -F FORWARD
+iptables -t nat -F POSTROUTING
+iptables -t nat -Z POSTROUTING
+iptables -t nat -F PREROUTING
+iptables -t nat -Z PREROUTING
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+echo -e $ok "Tabelas e Chains limpos e Politicas padrao aplicadas no Iptables."
+echo -e $warning "Firewall Desabilitado!"
+}
+
+
+iniciar(){
+
+if [ $internet_active = "yes" ]; then(
+### Habilitando os módulos
+echo -e $info "Carregando os Modulos ..."
+modprobe ip_conntrack
+modprobe ip_conntrack_ftp
+modprobe ip_nat_ftp
+# modprobe ip_queue # Not Fedora
+modprobe ip_tables
+modprobe ipt_LOG
+modprobe ipt_MARK
+modprobe ipt_MASQUERADE
+modprobe ipt_REDIRECT
+modprobe ipt_REJECT
+modprobe ipt_TCPMSS
+modprobe ipt_TOS
+modprobe ipt_limit
+modprobe ipt_mac
+modprobe ipt_mark
+modprobe ipt_multiport
+modprobe ipt_owner
+modprobe ipt_state
+modprobe ipt_tcpmss
+modprobe ipt_tos
+modprobe iptable_filter
+modprobe iptable_mangle
+modprobe iptable_nat
+echo -e $ok "Modulos Carregados."
+
+
+### Alterar política padrão
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+echo -e $ok "Politica Padrao Definida."
+
+
+
+#===================================
+#       Servidores - Begin		   #
+#===================================
+# Se sua maquina for um servidor, informe abaixo os servicos que vai entrar(INPUT) em seu servidor,
+# com as suas repectivas portas. Isto, eh para que seu servidor tenha estas portas abertas para estes servicos.
+
+if [ $iface_interna_yesno = "yes" ]; then(
+
+	if [ $server_dhcp = "yes" ]; then(
+		# DHCP - Servidor DHCP
+		iptables -A INPUT -i $iface_interna -p udp --sport 68 --dport 67 -j ACCEPT
+	)fi
+
+	if [ $server_apache_tomcat = "yes" ]; then(
+		# Apache/TomCat - Servidor Web
+		iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+		iptables -A INPUT -p tcp --dport 8075 -j ACCEPT
+	)fi
+
+	if [ $server_bind9 = "yes" ]; then(
+		# Bind9 - Servidor DNS
+		iptables -A INPUT -p udp --dport 53 -j ACCEPT
+	)fi
+
+	if [ $server_proftpd = "yes" ]; then(
+		# ProFTP - Servidor FTP
+		iptables -A INPUT -i $iface_interna -p tcp --dport 21 -j ACCEPT
+		iptables -A INPUT -i $iface_interna -p tcp -m multiport --dports 49152:49162 -j ACCEPT
+	)fi
+
+	if [ $server_postfix = "yes" ]; then(
+		# Postfix - Servidor de E-mail
+		iptables -A INPUT -i $iface_interna -p tcp -m multiport --dports 25,110 -j ACCEPT
+		iptables -A INPUT -i $iface_interna -p tcp -m multiport --dports 465,995 -j ACCEPT
+	)fi
+
+	if [ $server_postgresql = "yes" ]; then(
+		# PostgreSQL - Servidor Postgresql
+		iptables -A INPUT -i $iface_interna -p tcp --dport 5432 -j ACCEPT
+	)fi
+
+	if [ $server_samba = "yes" ]; then(
+		# Samba - Serviços de Diretório da Microsoft
+		iptables -A INPUT -i $iface_interna -p tcp -m multiport --dports 445,139 -j ACCEPT
+		iptables -A INPUT -i $iface_interna -p udp -m multiport --dports 137,138 -j ACCEPT
+	)fi
+
+	if [ $server_squid = "yes" ]; then(
+		# Squid - Servidor Proxy
+		iptables -A INPUT -i $iface_interna -p tcp --dport 3128 -j ACCEPT
+	)fi
+
+)fi
+
+#===================================
+#       Servidores - End		   #
+#===================================
+
+
+
+
+#===================================
+#       Servicos - Begin	   	   #
+#===================================
+# Informe abaixo, os servicos que vai sair e entrar no sua maquina (FORWARD) atraves de
+# suas respectivas portas.
+
+if [ $iface_externa_yesno = "yes" ]; then(
+
+	if [ $service_dns = "yes" ]; then(
+		# DNS - Serviço de Nomes de Dominios
+		iptables -A FORWARD -o $iface_externa -p udp -m multiport --dports 53,5353 -j ACCEPT
+	)fi
+
+	if [ $service_ftp = "yes" ]; then(
+		# FTP - Protocolo de Transferência de Arquivo
+		iptables -A FORWARD -o $iface_externa -p tcp --dport 21 -j ACCEPT
+	)fi
+
+	if [ $service_http = "yes" ]; then(
+		# HTTP - Protocolo de Transferência de Hypertext
+		iptables -A FORWARD -o $iface_externa -p tcp -m multiport --dports 80,8080 -j ACCEPT
+	)fi
+
+	if [ $service_https = "yes" ]; then(
+		# HTTPS - Protocolo de Transferência de Hypertext Seguro
+		iptables -A FORWARD -o $iface_externa -p tcp --dport 443 -j ACCEPT
+	)fi
+
+	if [ $service_ping = "yes" ]; then(
+		# Ping
+		if [ $iface_interna_yesno = "yes" ]; then(
+			iptables -A INPUT -i $iface_interna -p icmp --icmp-type 8 -j ACCEPT
+		)fi
+		iptables -A FORWARD -o $iface_externa -p icmp --icmp-type 8 -j ACCEPT
+	)fi
+
+	if [ $service_pop3 = "yes" ]; then(
+	# POP3 - Protocolo de Correio
+	iptables -A FORWARD -o $iface_externa -p tcp --dport 110 -j ACCEPT
+	)fi
+
+	if [ $service_pop3s = "yes" ]; then(
+		# POP3S - Protocolo de Correio Seguro
+		iptables -A FORWARD -o $iface_externa -p tcp --dport 995 -j ACCEPT
+	)fi
+
+	if [ $service_pptp = "yes" ]; then(
+		# PPTP - Protocolo de Encapsulamento Ponto a Ponto
+		iptables -A FORWARD -o $iface_externa -p tcp --dport 1723 -j ACCEPT
+	)fi
+
+	if [ $service_ssh = "yes" ]; then(
+	# SSH - Shell Seguro
+	iptables -A FORWARD -o $iface_externa -p tcp --dport 22 -j ACCEPT
+	)fi
+
+	if [ $service_smtp = "yes" ]; then(
+	# SMTP - Protocolo Simples para Transferência de Correio
+	iptables -A FORWARD -o $iface_externa -p tcp --dport 25 -j ACCEPT
+	)fi
+
+)fi
+#===================================
+#       Servicos - End  	   	   #
+#===================================
+
+
+
+#===================================
+#       Segurança - Begin	   #
+#===================================
+
+if [ $security = "yes" ]; then(
+
+	### Segurança Diversa
+	echo -e $info "Carregando Seguranca da Rede, Firewall e Gerando Logs de Portas."
+	iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+	echo 1 > /proc/sys/net/ipv4/conf/default/rp_filter
+
+	### Setando telnet,www,smtp,pop3 e FTP para Pouco Delay
+	iptables -t mangle -A OUTPUT -p tcp -m multiport --dports 21,22,23,100,3128,80 -j TOS --set-tos Minimize-Delay
+	iptables -t mangle -A OUTPUT -p tcp --dport 23 -j TOS --set-tos Minimize-Delay
+
+
+	### Impedindo ataque Ping of Death no Firewall
+	iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+
+	## Bloqueio a syn-flood via modulo limit
+	iptables -A FORWARD -p tcp --syn -m limit --limit 1/s -j ACCEPT
+
+	### Descarte de pacotes nao identificados ICMP
+	iptables -A OUTPUT -m state -p icmp --state INVALID -j DROP
+	iptables -A INPUT -m state -p icmp --state INVALID -j DROP
+	iptables -A FORWARD -m state -p icmp --state INVALID -j DROP
+
+	### Bloqueio a IP Spoofing
+	iptables -N syn-flood
+	if [ $iface_externa_yesno = "yes" ]; then(
+		iptables -A INPUT -i $iface_externa -p tcp --syn -j syn-flood
+	)fi
+	iptables -A syn-flood -m limit --limit 1/s --limit-burst 4 -j RETURN
+	iptables -A syn-flood -j DROP
+
+	# Fechar algumas portas especificamente
+	iptables -A INPUT -p tcp --dport 21 -j LOG --log-prefix "Serviço: ftp"
+	iptables -A INPUT -p tcp --dport 23 -j LOG --log-prefix "Serviço:telnet"
+
+	### Impedindo ataque Ping of Death na rede
+	iptables -A FORWARD -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+
+	### Impedindo ataque de Denial Of Service Dos na rede e servidor
+	iptables -I FORWARD -p tcp -m limit --limit 1/s -j ACCEPT
+	iptables -A INPUT -p tcp -m limit --limit 1/s -j ACCEPT
+
+	### Impedindo ataque Port Scanners na rede e no Firewall
+	iptables -A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -m limit --limit 1/s -j ACCEPT
+	iptables -I INPUT -p udp --dport 33435:33525 -j LOG --log-level info --log-prefix 'SCANNERS DROPADO>'
+	iptables -A INPUT -p udp --dport 33435:33525 -j DROP
+	iptables -I FORWARD -p udp --dport 33435:33525 -j LOG --log-level info --log-prefix 'SCANNERS DROPADO NA REDE>'
+	iptables -A FORWARD -p udp --dport 33435:33525 -j DROP
+
+	### Bloquear Back Orifice na rede
+	iptables -I INPUT -p tcp --dport 31337 -j LOG --log-level info --log-prefix 'ORIFICE DROPADO>'
+	iptables -A INPUT -p tcp --dport 31337 -j DROP
+	iptables -I INPUT -p udp --dport 31337 -j LOG --log-level info --log-prefix 'ORIFICE UDP>'
+	iptables -A INPUT -p udp --dport 31337 -j DROP
+	iptables -I FORWARD -p tcp --dport 31337 -j LOG --log-level info --log-prefix 'ORIFICE NA REDE>'
+	iptables -A FORWARD -p tcp --dport 31337 -j DROP
+	iptables -I FORWARD -p udp --dport 31337 -j LOG --log-level info --log-prefix 'ORIFICE NA REDE UDP>'
+	iptables -A FORWARD -p udp --dport 31337 -j DROP
+
+	### Bloquear NetBus na rede
+	iptables -I INPUT -p tcp --dport 12345 -j LOG --log-level info --log-prefix 'NETBUS >'
+	iptables -A INPUT -p tcp --dport 12345 -j DROP
+	iptables -I INPUT -p udp --dport 12345 -j LOG --log-level info --log-prefix 'NETBUS UDP>'
+	iptables -A INPUT -p udp --dport 12345 -j DROP
+	iptables -I FORWARD -p tcp --dport 12345 -j LOG --log-level info --log-prefix 'NETBUS NA REDE>'
+	iptables -A FORWARD -p tcp --dport 12345 -j DROP
+	iptables -I FORWARD -p udp --dport 12345 -j LOG --log-level info --log-prefix 'NETBUS UDP>'
+	iptables -A FORWARD -p udp --dport 12345 -j DROP
+
+	### Desabilita resposta para ping
+	echo 1 > /proc/sys/net/ipv4/icmp_echo_ignore_all
+
+	### Desabilita port scan
+	echo 1 > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts
+
+	### Desabilita redirecionamento de ICMP
+	for f in /proc/sys/net/ipv4/conf/*/accept_redirects; do
+		echo 0 >$f
+	done
+
+	### Ativando syn cookies proteçao no kernel. Protecao contra synflood.
+	echo 1 > /proc/sys/net/ipv4/tcp_syncookies
+
+	### Ativando protecao contra responses bogus
+	echo 1 > /proc/sys/net/ipv4/icmp_ignore_bogus_error_responses
+
+	### Protecao contra worms
+	iptables -I FORWARD -p tcp --dport 135 -j LOG --log-level info --log-prefix 'WORMS REDE>'
+	iptables -A FORWARD -p tcp --dport 135 -j DROP
+	iptables -I INPUT -p tcp --dport 135 -j LOG --log-level info --log-prefix 'WORMS >'
+	iptables -A INPUT -p tcp --dport 135 -j DROP
+
+	# Conexões proibidas
+	iptables -A INPUT -s 0.0.0.0/0 -i $iface_externa -j LOG --log-prefix "Conexão proibida"
+
+	### Bloqueando tracertroute
+	if [ $iface_externa_yesno = "yes" ]; then(
+		iptables -A INPUT -p udp -s 0/0 -i $iface_externa --dport 33435:33525 -j REJECT
+	)fi
+
+	### Permite o redirecionamento seguro dos pacotes
+	echo 1 > /proc/sys/net/ipv4/conf/all/secure_redirects
+
+	### IMPEDINDO O REDIRECIONAMENTO E UMA ROTA
+	echo 0 > /proc/sys/net/ipv4/conf/all/accept_redirects
+	echo -e $ok "Seguranca Carregada e Logs gerados."
+
+	# Libera Dns para o Server e Rede interna
+	if [ $iface_interna_yesno = "yes" ]; then(
+		iptables -A INPUT -p tcp --dport 53 -d $ip_interno -j ACCEPT
+		iptables -A INPUT -p udp --dport 53 -d $ip_interno -j ACCEPT
+		iptables -A FORWARD -p tcp --dport 53 -d $ip_interno -j ACCEPT
+		iptables -A FORWARD -p udp --dport 53 -d $ip_interno -j ACCEPT
+		echo -e $ok "Dns Liberado."
+	)fi
+
+
+	for i in /proc/sys/net/ipv4/conf/*; do
+		# Não Redirecionar Mensagens ICMP
+		echo 0 > $i/accept_redirects
+		# Proteção a Ataques IP Spoofing
+		echo 0 > $i/accept_source_route
+		# Permitir que Pacotes Forjados sejam logados pelo próprio kernel
+		echo 1 > $i/log_martians
+		# Verificar Endereço de Origem do Pacote (Proteção a Ataques IP Spoofing)
+		echo 1 > $i/rp_filter
+	done
+
+
+
+	# Bloqueio de ataques.
+	iptables -I INPUT -p tcp --syn -j LOG
+	iptables -A INPUT -p tcp --syn -j DROP
+	# Extras
+	iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+	iptables -A INPUT -p tcp --destination-port 80 -j DROP
+	iptables -A INPUT -p tcp --destination-port 443 -j DROP
+	iptables -A INPUT -p tcp --destination-port 22 -j DROP
+	iptables -A INPUT -p tcp --destination-port 1234 -j DROP
+	iptables -A INPUT -p tcp --destination-port 21 -j DROP
+	iptables -A INPUT -p tcp --destination-port 12345 -j DROP
+	iptables -A INPUT -p tcp --destination-port 20 -j DROP
+
+	 echo -e $ok "Bloqueio contra ataques ativado."
+
+
+)fi
+
+
+#===================================
+#       Segurança - End		   	   #
+#===================================
+
+
+
+
+
+
+#===================================
+#       Conectividade - Begin	   #
+#===================================
+
+
+	if [ $squid_redirect_server = "yes" ]; then(
+		# Redirecionando porta 80 para 3128 do Squid - Proxy Transparent Localhost.
+		 iptables -t nat -A OUTPUT -m multiport -p tcp --dports 80,3128 -m owner --uid-owner proxy -j ACCEPT
+		 iptables -t nat -A OUTPUT -p tcp --dport 80 -j REDIRECT --to-port 3128
+
+		# Redirecionando porta 80 para 3128 do Squid - Proxy Transparent Rede Interna.
+		if [ $iface_interna_yesno = "yes" ]; then(
+			iptables -t nat -A PREROUTING  -p tcp  -i $iface_interna --dport 80 -j REDIRECT --to-port 3128
+		)fi
+		echo -e $ok "Redirecionamento da rede para Squid."
+    )elif
+      [ $squid_redirect_server = "no" ] && [ $squid_redirect_client = "yes" ]; then(
+		# Redirecionando porta 80 para 3128 do Squid - Proxy Transparent Localhost.
+		 iptables -t nat -A OUTPUT -m multiport -p tcp --dports 80,3128 -m owner --uid-owner proxy -j ACCEPT
+		 iptables -t nat -A OUTPUT -p tcp --dport 80 -j REDIRECT --to-port 3128
+    )fi
+
+
+
+	# Compartilhando internet com rede local.
+	# -----------------
+	# importante!
+	# -----------------
+	# No debian, altere o arquivo /etc/sysctl.conf, retirando o comentário da seguinte linha:
+	# net.ipv4.ip_forward = 1
+	# Para realizar o compartilhamento da conexao na rede local.
+	# --------------------------------------
+	if [ $network_share = "yes" ]; then(
+		echo 1 > /proc/sys/net/ipv4/ip_forward # ativando roteamento
+		if [ $iface_externa_yesno = "yes" ]; then(
+		iptables -t nat -A POSTROUTING  -o $iface_externa -j MASQUERADE # mascarando internet
+		)fi
+		if [ $iface_interna_yesno = "yes" ]; then(
+		iptables -A FORWARD -i $iface_interna -j ACCEPT
+		)fi
+		echo -e $ok "Internet Compartilhada."
+	)fi
+
+
+	### Libera a loopback e a rede local
+	iptables -I INPUT -i lo -j ACCEPT #(obrigatorio)
+	iptables -I OUTPUT -o lo -j ACCEPT #(obrigatorio)
+	iptables -A INPUT -i lo -j ACCEPT #(obrigatorio)
+	if [ $iface_interna_yesno = "yes" ]; then(
+		iptables -A INPUT -p tcp --syn -s $ip_interno -j ACCEPT
+		iptables -A OUTPUT -p tcp --syn -s $ip_interno -j ACCEPT
+		iptables -A FORWARD -p tcp --syn -s $ip_interno -j ACCEPT
+	)fi
+	echo -e $ok "Tráfego na Interface loopback liberados."
+
+
+
+	# Manter Conexões Estabelecidas
+	iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+	# iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+	echo -e $ok "Conexoes Estabelecidas!"
+	echo -e $warning "Firewall Ativo!"
+
+)else(
+	iptables -I INPUT -p tcp -j DROP
+	iptables -I OUTPUT -p tcp -j DROP
+	iptables -I INPUT -j DROP
+	iptables -I OUTPUT -j DROP
+	iptables -P INPUT DROP
+	iptables -P FORWARD DROP
+	iptables -P OUTPUT DROP
+	echo -e $warning "Internet Bloqueada."
+)fi
+
+#===================================
+#       Conectividade - End	   #
+#===================================
+
+
+
+
+}
+
+
+case "$1" in
+     start)
+          echo -e "$info Habilitando Firewall Iptables ..."
+          parar
+          iniciar
+          ;;
+     stop)
+          echo -e "$info Desabilitando Firewall Iptables ..."
+          parar
+          ;;
+     restart|reload)
+	  parar
+          echo -e "$info Reiniciando Firewall Iptables..."
+          iniciar
+          ;;
+     *)
+        echo " * Usage: $0 {start|stop|restart|reload}"
+         exit 1
+esac
+exit 0
