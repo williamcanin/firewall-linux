@@ -1,7 +1,7 @@
 # Easy Install Firewall
 
 
-This project will help to install a firewall on Linux with the help of Firewall Builder to create the firewall script.
+This project will help to install a firewall on Linux with the help of [Firewall Builder](http://www.fwbuilder.org/) to create the firewall script.
 
 
 ## Requirements
@@ -17,7 +17,7 @@ This project will help to install a firewall on Linux with the help of Firewall 
 
 ## Configuration
 
-You have the option to configure the firewall script with Firewall Builder through this launcher, but
+You have the option to configure the firewall script with [Firewall Builder](http://www.fwbuilder.org/) through this launcher, but
 you can do it manually by double-clicking the file *'src/firewall.fwb'*.
 Remember if! After setting, save and compile.
 
