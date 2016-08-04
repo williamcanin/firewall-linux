@@ -2,30 +2,272 @@
 
 # Variables Global
 #
-SCRIPT_NAME="$(ls -1 src/)"
+
+
+# Variable Version
+version="1.1.1"
+
+# Variables author
+email="william.costa.canin@gmail.com"
+website="http://williamcanin.com"
+github="https://github.com/williamcanin"
+program_name="Easy Install Firewall"
+
+# Variables colors
+Bold=$(tput bold)
+Underline=$(tput sgr 0 1)
+None=$(tput sgr0)
+# Regular Colors
+Red=$(tput setaf 1)
+Green=$(tput setaf 2)
+Yellow=$(tput setaf 3)
+Blue=$(tput setaf 4)
+Purple=$(tput setaf 5)
+Cyan=$(tput setaf 6)
+White=$(tput setaf 7)
+# Bold
+BRed=${Bold}$(tput setaf 1)
+BGreen=${Bold}$(tput setaf 2)
+BYellow=${Bold}$(tput setaf 3)
+BBlue=${Bold}$(tput setaf 4)
+BPurple=${Bold}$(tput setaf 5)
+BCyan=${Bold}$(tput setaf 6)
+BWhite=${Bold}$(tput setaf 7)
+
+# Variables messages
+Error="[${BRed} Error ${None}]"
+Warning="[${BYellow} Warning ${None}]"
+Info="[${BCyan} Info ${None}]"
+Ok="[${BGreen} Ok ${None}]"
+Wait="[${BWhite} Wait ${None}]"
+
+# Variables configuration script
+year_current="$(date +%Y)"
+SCRIPT_NAME="firewall"
 SERVICE_NAME="${SCRIPT_NAME}.service"
 DIR_SCRIPTS="/usr/lib/systemd/scripts"
 DIR_SERVICE="/etc/systemd/system"
 
-# Is Root
-#
-if [[ "$(id -u )" != 0 ]]; then
-  printf "[Warning] Use Root !\n"
-  exit 1
-fi
 
-# Functions / Methods
-#
-function _prepare(){
-  # This option is for Fedora
-  systemctl stop firewalld
-  systemctl disable firewalld
+
+# Functions messages
+msg_info() {
+    printf "$(tput setaf 6)→ %s $(tput sgr0)\n" "$@"
 }
 
-function _create_install_service(){
+msg_finish() {
+    printf "$(tput setaf 2)✔ %s $(tput sgr0)\n" "$@"
+}
 
-cat << EOF > "$DIR_SERVICE/$SERVICE_NAME"
-# Firewall Mode Script
+msg_warning() {
+    printf "$(tput setaf 3)! %s $(tput sgr0)\n" "$@"
+}
+
+msg_error() {
+    printf "$(tput setaf 1)✖ %s $(tput sgr0)\n" "$@"
+}
+
+# Is Root
+# (( UID > 0 )) && { msg_error "You must be root"; exit 1; }
+
+# Function show Credits
+function _credits(){
+cat << EOT
+
+   ---------------------------------------------------------
+  |         ${program_name} - Version ${version}           |
+   ---------------------------------------------------------
+  |                         Credits:                        |
+  |                                                         |
+  |           Author: William da Costa Canin                |
+  |           E-Mail: $email         |
+  |           Website: $website              |
+  |           GitHub: $github       |
+  |           Locale: Brazil - SP                           |
+  |                                                         |
+  |                                                         |
+  | ${program_name} © 2016-$year_current - All Right Reserved. |
+  |    Doc: http://github.com/williamcanin/firewall-linux   |
+  |---------------------------------------------------------|
+
+EOT
+}
+
+# Function show help
+function _help(){
+cat << EOT
+
+ ---------------------------------------------------------
+|    Help  -  ${program_name} - Version ${version}       |
+ ---------------------------------------------------------
+
+	Attention! Before installing, you need to create script Firewall with
+	Firewall Builder. There is a profile in the 'src' folder to generate
+	this script. But remember! You must set up according to the
+	needs of your machine. For example, the IP configuration.
+
+	For more configuration information, see:
+	Doc: http://github.com/williamcanin/firewall-linux
+
+
+
+ Usage: $0 [options]
+
+  Options:
+
+    -i | install      Install Firewall creating a service in systemd,
+    				  and symbolic link in the / sbin to run manually.
+
+    -u | uninstall    Uninstall Firewall and systemd service. 
+    				  To succeed in uninstallation, the installation 
+    				  must have been with this script. 
+
+    -c | credits           A list of credits of this program.
+
+    -h | help              Output this instructions.
+
+EOT
+}
+
+# Function create link simbolik in /sbin
+function _link_simbolik_firewall(){
+	if [[ -f /sbin/${SCRIPT_NAME} ]]; then
+		msg_info "There is already a script with name \"${SCRIPT_NAME}\" in '/sbin'."
+		msg_info "Would I like to backup and replace the $program_name? (Answer with the number)"
+		PS3="Reply > "
+		select runner in "Yes" "No"; do
+			case $runner in
+				"Yes" )
+					sudo mv /sbin/${SCRIPT_NAME} /sbin/${SCRIPT_NAME}.bak
+		     		sudo ln -s $DIR_SCRIPTS/$SCRIPT_NAME.fw /sbin/${SCRIPT_NAME}
+		     		break
+				;;
+				"No" )
+					msg_warning "Canceled by user"
+		     		break
+				;;
+		       *)
+		         msg_error "Invalid Option"
+		       ;;
+			esac
+		done
+	else
+		sudo ln -s $DIR_SCRIPTS/$SCRIPT_NAME.fw /sbin/${SCRIPT_NAME}
+	fi
+}
+
+
+# Function show help
+function _warning_before_using_fw(){
+cat << EOT
+
+ 	------------------------------------------------------
+	|    		      Warning                         |
+ 	------------------------------------------------------
+
+	Before installing the Firewall, you need to make the 
+	settings the same across the Firewall Builder (FWB). 
+	This agent will open the FWB project for you to change 
+	as clients needs. Once completed, save and compile the 
+	FWB the project to generate the firewall script.
+
+EOT
+
+	msg_info "Choose an option (Answer with the number)"
+	PS3="Reply > "
+	select runner in "Setting up the project" "Already set up project"; do
+		case $runner in
+			"Setting up the project" )
+				set_project="true"
+				break
+				;;
+			"Already set up project" )
+				set_project="false"
+				break
+				;;
+		esac
+	done
+
+}
+
+
+# Verify Firewall Builder installed
+function _open_fw(){
+	if [[ ! -f /usr/bin/fwbuilder ]]; then
+		msg_warning "Firewall Builder is not installed. To use this script, Firewall Builder must be installed. Install it according to your Linux distribution."
+		printf "Arch Linux:\n"
+		printf "	shell> # pacman -S fwbuilder \n"
+		printf "Debian/Ubuntu:\n"
+		printf "	shell> # apt-get install fwbuilder \n"
+		printf "Fedora:\n"
+		printf "	shell> # dnf install fwbuilder \n"
+		printf "Others:\n"
+		printf "	http://www.fwbuilder.org/4.0/docs/firewall_builder_installation.shtml \n"
+		exit 1
+	else
+		_warning_before_using_fw
+		if [[ $set_project == "true" ]]; then
+			sudo -k
+			fwbuilder -f src/firewall.fwb
+		else
+			msg_info "You said you have already set up the project in Firewall Builder, so let's move ..."
+			msg_info "Press Enter to continue"
+			read
+		fi
+
+	fi
+}
+
+# Function select type of IP
+function _selected_type_ip(){
+	msg_info "What kind of IP your machine uses? (Answer with the number)"
+	PS3="Reply > "
+	select runner in "Dinamic" "Static"; do
+	   case $runner in
+	      "Dinamic" )
+			if [[ ! -f src/dinamic.fw ]]; then
+				msg_error "Script not found. You must generate the script with Firewall Builder"
+				_credits
+				exit 1
+			else
+				cp -f src/dinamic.fw src/${SCRIPT_NAME}.fw
+	        	rm -f src/dinamic.fw
+	        	rm -f src/static.fw
+	        	msg_finish "Done!"
+	        	break
+			fi
+	        ;;
+	      "Static" )
+			if [[ ! -f src/static.fw ]]; then
+				msg_error "Script not found. You must generate the script with Firewall Builder"
+				_credits
+				exit 1
+			else
+				cp -f src/static.fw src/${SCRIPT_NAME}.fw
+	        	rm -f src/static.fw
+	        	rm -f src/dinamic.fw
+	        	msg_finish "Done!"
+	        	break
+			fi
+	       ;;
+	       *)
+	         msg_error "Invalid Option"
+	       ;;
+	   esac
+	done
+}
+
+# Function prepare before install
+function _prepare_stop_firewalld(){
+  # This option is for Fedora
+  sudo systemctl stop firewalld
+  sudo systemctl disable firewalld
+}
+
+# Function create service in systemd
+function _create_install_service(){
+cat << EOF > src/$SERVICE_NAME
+# Firewall Linux
 # OS: Linux
 # Author: William C. Canin
 
@@ -38,63 +280,77 @@ After=syslog.target
 [Service]
 Type=simple
 RemainAfterExit=yes
-ExecStart=$DIR_SCRIPTS/$SCRIPT_NAME start
-ExecStop=$DIR_SCRIPTS/$SCRIPT_NAME stop
-ExecReload=$DIR_SCRIPTS/$SCRIPT_NAME restart
+ExecStart=$DIR_SCRIPTS/${SCRIPT_NAME}.fw start
+ExecStop=$DIR_SCRIPTS/${SCRIPT_NAME}.fw stop
+ExecReload=$DIR_SCRIPTS/${SCRIPT_NAME}.fw reload
 
 [Install]
 WantedBy=multi-user.target
 EOF
-  chmod 644 $DIR_SERVICE/$SERVICE_NAME
+  sudo mv src/$SERVICE_NAME $DIR_SERVICE/$SERVICE_NAME
+  sudo chmod 644 $DIR_SERVICE/$SERVICE_NAME
 }
 
+# Function install script Firewall in folder systemd
 function _install_script(){
   if [[ ! -d "$DIR_SCRIPTS" ]]; then
-    mkdir $DIR_SCRIPTS
+    sudo mkdir $DIR_SCRIPTS
   fi
-  cp -f src/$SCRIPT_NAME $DIR_SCRIPTS
-  chmod +x $DIR_SCRIPTS/$SCRIPT_NAME
+  sudo cp -f src/${SCRIPT_NAME}.fw $DIR_SCRIPTS
+  rm -f src/${SCRIPT_NAME}.fw
+  sudo chmod +x $DIR_SCRIPTS/${SCRIPT_NAME}.fw
 }
 
+# Function reload systemd 
 function _realod_systemd(){
-  systemctl daemon-reload
+ sudo  systemctl daemon-reload
 }
 
+# Function visible status Firewall
 function _status_start_firewall(){
-  systemctl start $SERVICE_NAME
-  systemctl status $SERVICE_NAME
+  sudo systemctl start $SERVICE_NAME
+  sudo systemctl status $SERVICE_NAME
 }
 
+# Function uninstall Firewall
 function _uninstall(){
-  systemctl stop $SERVICE_NAME
-  systemctl disable $SERVICE_NAME
-  rm -f $DIR_SCRIPTS/$SCRIPT_NAME
-  rm -f $DIR_SERVICE/$SERVICE_NAME
-  _realod_systemd
+	if [[ ! -f $DIR_SCRIPTS/${SCRIPT_NAME}.fw ]] && [[ ! -f /sbin/$SCRIPT_NAME ]] && [[ ! -f $DIR_SERVICE/$SERVICE_NAME ]]; then
+		msg_warning "The firewall is not uninstalled or not installed with this script or is missing a file, leaving corrupted."
+		exit 1
+	else
+		sudo systemctl stop $SERVICE_NAME
+	  	sudo systemctl disable $SERVICE_NAME
+	  	sudo rm -f $DIR_SCRIPTS/${SCRIPT_NAME}.fw
+	  	sudo rm -f $DIR_SERVICE/$SERVICE_NAME
+	  	sudo rm -f /sbin/${SCRIPT_NAME}
+	  	_realod_systemd
+	  	msg_finish "Done"
+	fi
 }
 
 # Main
-#
 case $1 in
   install|-i )
-    _prepare
+	_open_fw
+	_prepare_stop_firewalld
+	_selected_type_ip
     _install_script
+    _link_simbolik_firewall
     _create_install_service
     _realod_systemd
     _status_start_firewall
-    printf "Done!\n"
+    msg_finish "Complete installation."
     ;;
     uninstall|-u)
       _uninstall
-      printf "Done!\n"
     ;;
+    credits|-c)
+		_credits
+	;;
+    help|-h)
+		_help
+	;;
     *)
-      printf "Usage: $0 [ install [-i] | uninstall [-u] ]\n"
+      printf "Usage: $0 [ install [-i] | uninstall [-u] | credits [-c] | help [-h] ]\n"
     ;;
 esac
-
-
-
-
-
-
