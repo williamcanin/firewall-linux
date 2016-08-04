@@ -21,6 +21,9 @@ You have the option to configure the firewall script with Firewall Builder throu
 you can do it manually by double-clicking the file *'src/firewall.fwb'*.
 Remember if! After setting, save and compile.
 
+The project *'src/firewall.fwb'* has two types of firewall, utm for dynamic IP and one for static IP.
+Set up according to what you use. 
+
 ## Installation
 
 * 1 - Install Firewall Builder according to your Linux distribution.

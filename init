@@ -209,6 +209,8 @@ function _open_fw(){
 		if [[ $set_project == "true" ]]; then
 			sudo -k
 			fwbuilder -f src/firewall.fwb
+			msg_info "Ok! You have configured your Firewall. Now enter the sudo permission for installation: "
+			echo
 		else
 			msg_info "You said you have already set up the project in Firewall Builder, so let's move ..."
 			msg_info "Press Enter to continue"
