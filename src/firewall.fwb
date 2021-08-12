@@ -1666,7 +1666,7 @@
           <Option name="verify_interfaces">True</Option>
         </FirewallOptions>
       </Firewall>
-      <Firewall id="id6797X16703" host_OS="linux24" inactive="False" lastCompiled="1628758874" lastInstalled="0" lastModified="1470294236" platform="iptables" version="" name="dinamic" comment="This is an example of a firewall protecting a host ( a server or a workstation). Only SSH access to the host is permitted. Host has dynamic address." ro="False">
+      <Firewall id="id6797X16703" host_OS="linux24" inactive="False" lastCompiled="1628758874" lastInstalled="0" lastModified="1628760188" platform="iptables" version="" name="dinamic" comment="This is an example of a firewall protecting a host ( a server or a workstation). Only SSH access to the host is permitted. Host has dynamic address." ro="False">
         <NAT id="id6815X16703" name="NAT" comment="" ro="False" ipv4_rule_set="False" ipv6_rule_set="False" top_rule_set="True">
           <RuleSetOptions/>
         </NAT>
@@ -1792,7 +1792,7 @@
         <Routing id="id6963X16703" name="Routing" comment="" ro="False" ipv4_rule_set="False" ipv6_rule_set="False" top_rule_set="True">
           <RuleSetOptions/>
         </Routing>
-        <Interface id="id6805X16703" dedicated_failover="False" dyn="True" label="External Network Wired" mgmt="False" security_level="0" unnum="False" unprotected="False" name="enp19s0" comment="" ro="False">
+        <Interface id="id6805X16703" dedicated_failover="False" dyn="True" label="External Network Wired" mgmt="False" security_level="0" unnum="False" unprotected="False" name="eno1" comment="" ro="False">
           <InterfaceOptions/>
         </Interface>
         <Interface id="id6807X16703" dedicated_failover="False" dyn="False" label="loopback" mgmt="False" security_level="100" unnum="False" unprotected="False" name="lo" comment="" ro="False">
